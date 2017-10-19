@@ -1,0 +1,89 @@
+package main
+
+import "fmt"
+
+type ActionType int
+const (
+    AT_BUY ActionType = iota
+    AT_SELL
+    AT_CANCEL
+    AT_CANCELLED
+    AT_PARTIAL_FILLED
+    AT_FILLED
+)
+
+func (at ActionType) String() string {
+	switch at {
+	case AT_BUY:
+		return "BUY"
+	case AT_SELL:
+		return "SELL"
+	case AT_CANCEL:
+		return "CANCEL"
+	case AT_CANCELLED:
+		return "CANCELLED"
+	case AT_PARTIAL_FILLED:
+		return "PARTIAL_FILLED"
+	case AT_FILLED:
+		return "FILLED"
+    }
+    panic("Unknown action type.")
+}
+
+type Action struct {
+    actionType ActionType `json:"actionType"`
+    orderId uint64 `json:"orderId"`
+    fromOrderId uint64 `json:"fromOrderId"`
+    amount uint32 `json:"amount"`
+    price uint32 `json:"price"`
+}
+
+func NewBuyAction(o *Order) *Action {
+    return &Action{actionType: AT_BUY, orderId: o.id, amount: o.amount,
+        price: o.price}
+}
+
+func NewSellAction(o *Order) *Action {
+    return &Action{actionType: AT_SELL, orderId: o.id, amount: o.amount,
+        price: o.price}
+}
+
+func NewCancelAction(id uint64) *Action {
+    return &Action{actionType: AT_CANCEL, orderId: id}
+}
+
+func NewCancelledAction(id uint64) *Action {
+    return &Action{actionType: AT_CANCELLED, orderId: id}
+}
+
+func NewPartialFilledAction(o *Order, fromOrder *Order, amount uint32, price uint32) *Action {
+    return &Action{actionType: AT_PARTIAL_FILLED, orderId: o.id, fromOrderId: fromOrder.id,
+        amount: amount, price: price}
+}
+
+func NewFilledAction(o *Order, fromOrder *Order, price uint32) *Action {
+    return &Action{actionType: AT_FILLED, orderId: o.id, fromOrderId: fromOrder.id,
+        amount: o.amount, price: price}
+}
+
+func ConsoleActionHandler(actions <-chan *Action) {
+    for {
+        a := <-actions
+        switch a.actionType {
+        case AT_BUY, AT_SELL:
+            fmt.Printf("%s - Order: %v, Amount: %v, Price: %v\n",
+                a.actionType, a.orderId, a.amount, a.price)
+        case AT_CANCEL, AT_CANCELLED:
+            fmt.Printf("%s - Order: %v\n", a.actionType, a.orderId)
+        case AT_PARTIAL_FILLED, AT_FILLED:
+            fmt.Printf("%s - Order: %v, Filled %v@%v, From: %v\n",
+                a.actionType, a.orderId, a.amount, a.price, a.fromOrderId)
+        default:
+            panic("Can't handle action.")
+        }
+    }
+}
+
+func NoopActionHandler(actions <-chan *Action) {
+    for { <-actions }
+}

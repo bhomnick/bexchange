@@ -2,33 +2,16 @@ package main
 
 import "fmt"
 
-type ActionType int
+type ActionType string
 const (
-    AT_BUY ActionType = iota
-    AT_SELL
-    AT_CANCEL
-    AT_CANCELLED
-    AT_PARTIAL_FILLED
-    AT_FILLED
+    AT_BUY = "BUY"
+    AT_SELL = "SELL"
+    AT_CANCEL = "CANCEL"
+    AT_CANCELLED = "CANCELLED"
+    AT_PARTIAL_FILLED = "PARTIAL_FILLED"
+    AT_FILLED = "FILLED"
+    AT_DONE = "DONE"
 )
-
-func (at ActionType) String() string {
-	switch at {
-	case AT_BUY:
-		return "BUY"
-	case AT_SELL:
-		return "SELL"
-	case AT_CANCEL:
-		return "CANCEL"
-	case AT_CANCELLED:
-		return "CANCELLED"
-	case AT_PARTIAL_FILLED:
-		return "PARTIAL_FILLED"
-	case AT_FILLED:
-		return "FILLED"
-    }
-    panic("Unknown action type.")
-}
 
 type Action struct {
     actionType ActionType `json:"actionType"`
@@ -36,6 +19,11 @@ type Action struct {
     fromOrderId uint64 `json:"fromOrderId"`
     amount uint32 `json:"amount"`
     price uint32 `json:"price"`
+}
+
+func (a *Action) String() string {
+    return fmt.Sprintf("\nAction{actionType:%v,orderId:%v,fromOrderId:%v,amount:%v,price:%v}",
+        a.actionType, a.orderId, a.fromOrderId, a.amount, a.price)
 }
 
 func NewBuyAction(o *Order) *Action {
@@ -56,17 +44,21 @@ func NewCancelledAction(id uint64) *Action {
     return &Action{actionType: AT_CANCELLED, orderId: id}
 }
 
-func NewPartialFilledAction(o *Order, fromOrder *Order, amount uint32, price uint32) *Action {
+func NewPartialFilledAction(o *Order, fromOrder *Order) *Action {
     return &Action{actionType: AT_PARTIAL_FILLED, orderId: o.id, fromOrderId: fromOrder.id,
-        amount: amount, price: price}
+        amount: fromOrder.amount, price: fromOrder.price}
 }
 
-func NewFilledAction(o *Order, fromOrder *Order, price uint32) *Action {
+func NewFilledAction(o *Order, fromOrder *Order) *Action {
     return &Action{actionType: AT_FILLED, orderId: o.id, fromOrderId: fromOrder.id,
-        amount: o.amount, price: price}
+        amount: o.amount, price: fromOrder.price}
 }
 
-func ConsoleActionHandler(actions <-chan *Action) {
+func NewDoneAction() *Action {
+    return &Action{actionType: AT_DONE}
+}
+
+func ConsoleActionHandler(actions <-chan *Action, done chan<- bool) {
     for {
         a := <-actions
         switch a.actionType {
@@ -78,8 +70,12 @@ func ConsoleActionHandler(actions <-chan *Action) {
         case AT_PARTIAL_FILLED, AT_FILLED:
             fmt.Printf("%s - Order: %v, Filled %v@%v, From: %v\n",
                 a.actionType, a.orderId, a.amount, a.price, a.fromOrderId)
+        case AT_DONE:
+            fmt.Printf("%s\n", a.actionType)
+            done <- true
+            return
         default:
-            panic("Can't handle action.")
+            panic("Unknown action type.")
         }
     }
 }

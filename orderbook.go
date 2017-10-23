@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 const MAX_PRICE = 10000000
 
 type PricePoint struct {
@@ -17,20 +19,6 @@ func (pp *PricePoint) Insert(o *Order) {
     }
 }
 
-func (pp *PricePoint) Peek() *Order {
-    return pp.orderHead
-}
-
-func (pp *PricePoint) Pop() *Order {
-    order := pp.orderHead
-    pp.orderHead = order.next
-    // Pop the last node
-    if order.next == nil {
-        pp.orderTail = nil
-    }
-    return order
-}
-
 type OrderStatus int
 const (
     OS_NEW OrderStatus = iota
@@ -45,9 +33,13 @@ type Order struct {
     isBuy bool
     price uint32
     amount uint32
-    filled uint32
     status OrderStatus
     next *Order
+}
+
+func (o *Order) String() string {
+    return fmt.Sprintf("\nOrder{id:%v,isBuy:%v,price:%v,amount:%v}",
+        o.id, o.isBuy, o.price, o.amount)
 }
 
 func NewOrder(id uint64, isBuy bool, price uint32, amount uint32) *Order {
@@ -79,10 +71,6 @@ func NewOrderBook(actions chan<- *Action) *OrderBook {
     ob.actions = actions
     ob.orderIndex = make(map[uint64]*Order)
     return ob
-}
-
-func (ob *OrderBook) Price() uint32 {
-    return (ob.ask - ob.bid) / 2
 }
 
 func (ob *OrderBook) AddOrder(o *Order) {
@@ -118,24 +106,9 @@ func (ob *OrderBook) FillBuy(o *Order) {
         pp := ob.prices[ob.ask]
         ppOrderHead := pp.orderHead
         for ppOrderHead != nil {
-            if ppOrderHead.amount >= o.amount {
-                ob.actions <- NewFilledAction(o, ppOrderHead, ob.ask)
-                ppOrderHead.amount -= o.amount
-                o.amount = 0
-                o.status = OS_FILLED
-                return
-            } else {
-                // Partial fill
-                if ppOrderHead.amount > 0 {
-                    ob.actions <- NewPartialFilledAction(o, ppOrderHead, ppOrderHead.amount, ob.ask)
-                    o.amount -= ppOrderHead.amount
-                    o.status = OS_PARTIAL
-                    ppOrderHead.amount = 0
-                }
-
-                ppOrderHead = ppOrderHead.next
-                pp.orderHead = ppOrderHead
-            }
+            ob.fill(o, ppOrderHead)
+            ppOrderHead = ppOrderHead.next
+            pp.orderHead = ppOrderHead
         }
         ob.ask++
     }
@@ -146,25 +119,29 @@ func (ob *OrderBook) FillSell(o *Order) {
         pp := ob.prices[ob.bid]
         ppOrderHead := pp.orderHead
         for ppOrderHead != nil {
-            if ppOrderHead.amount >= o.amount {
-                ob.actions <- NewFilledAction(o, ppOrderHead, ob.bid)
-                ppOrderHead.amount -= o.amount
-                o.amount = 0
-                o.status = OS_FILLED
-            } else {
-                // Partial fill
-                if ppOrderHead.amount > 0 {
-                    ob.actions <- NewPartialFilledAction(o, ppOrderHead, ppOrderHead.amount, ob.bid)
-                    ppOrderHead.amount = 0
-                    o.amount -= ppOrderHead.amount
-                    o.status = OS_PARTIAL
-                }
-
-                ppOrderHead = ppOrderHead.next
-                pp.orderHead = ppOrderHead
-            }
+            ob.fill(o, ppOrderHead)
+            ppOrderHead = ppOrderHead.next
+            pp.orderHead = ppOrderHead
         }
         ob.bid--
+    }
+}
+
+func (ob *OrderBook) fill(o, ppOrderHead *Order) {
+    if ppOrderHead.amount >= o.amount {
+        ob.actions <- NewFilledAction(o, ppOrderHead)
+        ppOrderHead.amount -= o.amount
+        o.amount = 0
+        o.status = OS_FILLED
+        return
+    } else {
+        // Partial fill
+        if ppOrderHead.amount > 0 {
+            ob.actions <- NewPartialFilledAction(o, ppOrderHead)
+            o.amount -= ppOrderHead.amount
+            o.status = OS_PARTIAL
+            ppOrderHead.amount = 0
+        }
     }
 }
 
@@ -179,3 +156,6 @@ func (ob *OrderBook) CancelOrder(id uint64) {
     ob.actions <- NewCancelledAction(id)
 }
 
+func (ob *OrderBook) Done() {
+    ob.actions <- NewDoneAction()
+}

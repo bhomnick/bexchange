@@ -1,5 +1,7 @@
 # bexchange
 
+[![Build Status](https://travis-ci.org/bhomnick/bexchange.svg?branch=master)](https://travis-ci.org/bhomnick/bexchange)
+
 The `bexchange` package is a simple limit order book implemented as a go exercise. Currently limit buys, sells, and order cancellation are all supported.  
 
 ## Example

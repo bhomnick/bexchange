@@ -1,4 +1,4 @@
-package main
+package bexchange
 
 import "fmt"
 
@@ -43,13 +43,8 @@ func (o *Order) String() string {
 }
 
 func NewOrder(id uint64, isBuy bool, price uint32, amount uint32) *Order {
-    o := new(Order)
-    o.id = id
-    o.isBuy = isBuy
-    o.price = price
-    o.amount = amount
-    o.status = OS_NEW
-    return o
+    return &Order{id: id, isBuy: isBuy, price: price, amount: amount,
+        status: OS_NEW}
 }
 
 type OrderBook struct {
